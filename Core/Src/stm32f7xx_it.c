@@ -100,8 +100,6 @@ void TIM1_UP_TIM10_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim1);
   /* USER CODE BEGIN TIM1_UP_TIM10_IRQn 1 */
 
-  millisecond++;
-
   /* USER CODE END TIM1_UP_TIM10_IRQn 1 */
 }
 
@@ -115,7 +113,6 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
-  halfsecond = 1;
 
   /* USER CODE END TIM2_IRQn 1 */
 }
