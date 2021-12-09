@@ -34,11 +34,11 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h \
  ../Core/Inc/i2c.h ../Core/Inc/main.h ../Core/Inc/rng.h ../Core/Inc/spi.h \
  ../Core/Inc/tim.h ../Core/Inc/usart.h ../Core/Inc/gpio.h \
- C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_Touchscreen.h \
- C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_STM32_Driver.h \
- C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_GFX.h \
- C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/snow_tiger.h \
- C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/STM32-AM2320-master/am2320.h
+ C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_Touchscreen.h \
+ C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_STM32_Driver.h \
+ C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_GFX.h \
+ C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/snow_tiger.h \
+ C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/STM32-AM2320-master/am2320.h
 
 ../Core/Inc/main.h:
 
@@ -122,12 +122,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 
 ../Core/Inc/gpio.h:
 
-C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_Touchscreen.h:
+C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_Touchscreen.h:
 
-C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_STM32_Driver.h:
+C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_STM32_Driver.h:
 
-C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/ILI9341_GFX.h:
+C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/ILI9341_GFX.h:
 
-C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341/snow_tiger.h:
+C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341/snow_tiger.h:
 
-C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/STM32-AM2320-master/am2320.h:
+C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/STM32-AM2320-master/am2320.h:

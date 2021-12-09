@@ -16,5 +16,5 @@ S_DEPS += \
 
 # Each subdirectory must supply rules for building sources it contributes
 Core/Startup/%.o: ../Core/Startup/%.s Core/Startup/subdir.mk
-	arm-none-eabi-gcc -mcpu=cortex-m7 -g3 -DDEBUG -c -I"C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/ILI9341" -I"C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/767_SPI_ILI9341_2/Drivers/STM32-AM2320-master" -x assembler-with-cpp -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -o "$@" "$<"
+	arm-none-eabi-gcc -mcpu=cortex-m7 -g3 -DDEBUG -c -I"C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/ILI9341" -I"C:/Users/ASUS/STM32CubeIDE/MAD_Lab_1.7.0/PBL1_Monitor/Drivers/STM32-AM2320-master" -x assembler-with-cpp -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -o "$@" "$<"
 

@@ -398,7 +398,7 @@ void assignmentOne(){
 
 
 	//Record
-	sprintf(Temp_Buffer_text, "Record %05d", numberOfRecord);
+	sprintf(Temp_Buffer_text, "Record %05d WTF PBL1", numberOfRecord);
 	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text), 1000);
 	newLine();
 	printText(Temp_Buffer_text,1,20,3);
