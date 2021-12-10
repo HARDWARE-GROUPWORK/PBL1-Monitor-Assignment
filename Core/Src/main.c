@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "i2c.h"
 #include "rng.h"
 #include "spi.h"
@@ -60,26 +61,47 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-int numberOfRecord = 1;
-int lightPercent = 100;
-float temp = 99.9;
-float humid = 99.9;
+
+bool initialState = false;
+
+//Values on Screen
+uint32_t numberOfRecord = 0; //index
+uint8_t lightPercent = 100;
+float temp = 99.0;
+float humid =  99.0;
+
+uint32_t prevNumberOfRecord = 0;
+uint8_t prevLightPercent = 0;
+float prevTemp = 0.0;
+float prevHumid = 0.0;
+
+//Average Buffer 20 values (1 value/500ms for 10 s)
+uint8_t lightPercentBuffer[20] = {0};
+float tempBuffer[20] = {0.0};
+float humidBuffer[20] = {0.0};
 
 char Temp_Buffer_text[40];
 
-//Horizontal Screen
-uint16_t maxWidth = 200; //300 //Left 50 - right 50
-uint16_t offsetWidth = 60;
-uint16_t maxHeight = 240;
+//ADC
+volatile uint32_t adc_val = 0;
 
-uint16_t mode = 0;
-uint16_t modeEdit = 1;
-uint16_t prevMode = -1;
-uint16_t prevModeEdit = -1;
+//Button
+bool pressButton1 = 0;
+bool pressButton2 = 0;
+bool pressButton3 = 0;
 
-uint16_t secondCounter = 0;
-uint16_t prevSecondCounter = 0;
-uint32_t millisecondHAL = 0;
+//Mode
+uint8_t mode = 0; // default 0, average 1
+int8_t previousNum = 1; //avg page, negative index from now
+int8_t prevPreviousNum = 0;
+
+//Timer
+uint64_t millisecondHAL = 0;
+uint64_t prevMillisecondHAL = 0;
+
+//Screen
+uint32_t colorScreen = BLACK;
+uint32_t prevColorScreen = BLACK;
 
 
 /* USER CODE END PV */
@@ -98,16 +120,18 @@ uint16_t CRC16_2(uint8_t *, uint8_t );
 void setHorizontalScreen(uint16_t color){
 	ILI9341_Fill_Screen(color);
 	ILI9341_Set_Rotation(SCREEN_HORIZONTAL_1);
+	ILI9341_Draw_Filled_Rectangle_Coord(15, 15, 305, 225, BLACK);
 }
 
 // Print text white font with black background
-void printText(char arr[],int line,int offset,int size){ // text, line, offset, size
-	if (line == 0){ // Start with line 1,2,3,4,5...
-		line = 1;
-	}else{
-		line -=1;
-	}
-	ILI9341_Draw_Text(arr, 10, 10+(offset*line), WHITE, size, BLACK);
+void printText(char arr[],float line,int offset,int size, uint32_t color){ // text, line, offset, size
+	line -=1;
+	ILI9341_Draw_Text(arr, 35, 30+(offset*line), color, size, BLACK);
+}
+
+void printValue(char arr[],float line,int offset,int size, uint32_t color){
+	line -=1;
+	ILI9341_Draw_Text(arr, 150, 30+(offset*line), color, size, BLACK);
 }
 
 void newLine(void){
@@ -120,29 +144,26 @@ uint8_t cmdBuffer[3];
 uint8_t dataBuffer[8];
 
 
-void assignmentOne(){
-
-	setHorizontalScreen(BLACK);
-
+void tempMonitor(){
 	//Temperature
 	cmdBuffer[0] = 0x03;
 	cmdBuffer[1] = 0x00;
 	cmdBuffer[2] = 0x04;
 
-	//Send Temp & Humid via UART2
-	sprintf(str, "Temperature = %4.1f\tHumidity = %4.1f\n\r", temp, humid);
-	while(__HAL_UART_GET_FLAG(&huart3,UART_FLAG_TC)==RESET){}
-	HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	//Send Temp & Humid via UART3
+//	sprintf(str, "Temperature = %4.1f\tHumidity = %4.1f\n\r", temp, humid);
+//	while(__HAL_UART_GET_FLAG(&huart3,UART_FLAG_TC)==RESET){}
+//	HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 
 	//HAL_Delay(5000); //>3000 ms
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
 
 	//Wake up sensor
 	HAL_I2C_Master_Transmit(&hi2c1, 0x5c<<1, cmdBuffer, 3, 200);
 	//Send reading command
 	HAL_I2C_Master_Transmit(&hi2c1, 0x5c<<1, cmdBuffer, 3, 200);
 
-	//HAL_Delay(1);
+	HAL_Delay(100); // 50 is too low, 100 is okay
 
 	//Receive sensor data
 	HAL_I2C_Master_Receive(&hi2c1, 0x5c<<1, dataBuffer, 8, 200);
@@ -157,33 +178,274 @@ void assignmentOne(){
 		uint16_t humidity = (dataBuffer[2] << 8) + dataBuffer[3];
 		humid = humidity / 10.0;
 	}
+}
 
-	//Record
-	sprintf(Temp_Buffer_text, "Record %05d", numberOfRecord);
-	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text), 1000);
-	newLine();
-	printText(Temp_Buffer_text,1,20,3);
+void averageScreen(){
+	uint8_t size = 3;
+	uint8_t offset = 30;
+	uint8_t n = 0;
+
+	uint16_t averageLightPercent = 0;
+	float averageTemp = 0.0;
+	float averageHumid = 0.0;
+
+	if(numberOfRecord <= 19){
+		n = numberOfRecord;
+	}else{
+		n = 20;
+	}
+
+	for(uint8_t i=0; i<n; i++){
+		averageLightPercent += lightPercentBuffer[i];
+		averageTemp += tempBuffer[i];
+		averageHumid += humidBuffer[i];
+
+		sprintf(str, "%d %f %f / %d %f %f\n\r",lightPercentBuffer[i], tempBuffer[i], humidBuffer[i],averageLightPercent ,averageTemp, averageHumid);
+		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+
+	averageLightPercent /= n;
+	averageTemp /= n;
+	averageHumid /= n;
+
+	//Average
+	sprintf(Temp_Buffer_text, "Average 10 s");
+	printText(Temp_Buffer_text,1.5,offset,size,GREENYELLOW);
 
 	//Light
-	sprintf(Temp_Buffer_text, "Light %d %%", lightPercent);
-	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text), 1000);
-	newLine();
-	printText(Temp_Buffer_text,2,20,3);
-
+	sprintf(Temp_Buffer_text, "Light");
+	printText(Temp_Buffer_text,3,offset,size,ORANGE);
 	//Temperature
-	sprintf(Temp_Buffer_text, "Temp %0.1f C", temp);
-	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text), 1000);
-	newLine();
-	printText(Temp_Buffer_text,3,20,3);
-
+	sprintf(Temp_Buffer_text, "Temp");
+	printText(Temp_Buffer_text,4,offset,size,PINK);
 	//Humidity
-	sprintf(Temp_Buffer_text, "Humid  %0.1f %%", humid);
-	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text), 1000);
-	newLine();
-	printText(Temp_Buffer_text,4,20,3);
+	sprintf(Temp_Buffer_text, "Humid");
+	printText(Temp_Buffer_text,5,offset,size,MAROON);
 
-	newLine();
-	HAL_Delay(1000);	// refresh every 1 second
+	//Update Light
+	sprintf(Temp_Buffer_text, "%02d %%", averageLightPercent);
+	printValue(Temp_Buffer_text,3,offset,size,WHITE);
+	//Update Temperature
+	sprintf(Temp_Buffer_text, "%0.1f C", averageTemp);
+	printValue(Temp_Buffer_text,4,offset,size,WHITE);
+	//Update Humidity
+	sprintf(Temp_Buffer_text, "%0.1f %%", averageHumid);
+	printValue(Temp_Buffer_text,5,offset,size,WHITE);
+}
+void updatePreviousValue(){
+	uint8_t size = 3;
+	uint8_t offset = 30;
+	uint64_t showNum = numberOfRecord+1 + previousNum;
+	//Update Record
+	sprintf(Temp_Buffer_text, "%05d", showNum);
+	printValue(Temp_Buffer_text,1.5,offset,size,WHITE);
+	//Update Light
+	sprintf(Temp_Buffer_text, "%02d %%", lightPercentBuffer[showNum % 20]);
+	printValue(Temp_Buffer_text,3,offset,size,WHITE);
+	//Update Temperature
+	sprintf(Temp_Buffer_text, "%0.1f C", tempBuffer[showNum % 20]);
+	printValue(Temp_Buffer_text,4,offset,size,WHITE);
+	//Update Humidity
+	sprintf(Temp_Buffer_text, "%0.1f %%", humidBuffer[showNum % 20]);
+	printValue(Temp_Buffer_text,5,offset,size,WHITE);
+	prevHumid = humid;
+}
+
+void initialValue(){
+	uint8_t size = 3;
+	uint8_t offset = 30;
+
+	prevNumberOfRecord = 0;
+	prevLightPercent = 0;
+	prevTemp = 0.0;
+	prevHumid = 0.0;
+
+	//Record
+	sprintf(Temp_Buffer_text, "Record");
+	printText(Temp_Buffer_text,1.5,offset,size,GREENYELLOW);
+	//Light
+	sprintf(Temp_Buffer_text, "Light");
+	printText(Temp_Buffer_text,3,offset,size,ORANGE);
+	//Temperature
+	sprintf(Temp_Buffer_text, "Temp");
+	printText(Temp_Buffer_text,4,offset,size,PINK);
+	//Humidity
+	sprintf(Temp_Buffer_text, "Humid");
+	printText(Temp_Buffer_text,5,offset,size,MAROON);
+}
+
+void updateValue(){
+	uint8_t size = 3;
+	uint8_t offset = 30;
+	//Update Record
+	if(prevNumberOfRecord != numberOfRecord){
+		sprintf(Temp_Buffer_text, "%05d", numberOfRecord+1);
+		printValue(Temp_Buffer_text,1.5,offset,size,WHITE);
+		prevNumberOfRecord = numberOfRecord;
+	}
+	//Update Light
+	if(prevLightPercent != lightPercent){
+		sprintf(Temp_Buffer_text, "%02d %%", lightPercent);
+		printValue(Temp_Buffer_text,3,offset,size,WHITE);
+		prevLightPercent = lightPercent;
+	}
+	//Update Temperature
+	if(prevTemp != temp){
+		sprintf(Temp_Buffer_text, "%0.1f C", temp);
+		printValue(Temp_Buffer_text,4,offset,size,WHITE);
+		prevTemp = temp;
+	}
+	//Update Humidity
+	if(prevHumid != humid){
+		sprintf(Temp_Buffer_text, "%0.1f %%", humid);
+		printValue(Temp_Buffer_text,5,offset,size,WHITE);
+		prevHumid = humid;
+	}
+
+	//Buffer
+	lightPercentBuffer[numberOfRecord % 20] = lightPercent;
+	tempBuffer[numberOfRecord % 20] = temp;
+	humidBuffer[numberOfRecord % 20] = humid;
+}
+
+void resisterMonitor(){
+
+	  float dutyCycleScreen = 0.0;
+	  while(HAL_ADC_PollForConversion(&hadc1, 100) != HAL_OK){}
+	  adc_val = HAL_ADC_GetValue(&hadc1);
+	  lightPercent = adc_val*100 / 4095;
+
+	  //Change Screen Light Output
+	  //PWM
+	  dutyCycleScreen = ((adc_val/4095.0) * 0.8) + 0.2;
+	  //No. 2
+	  htim3.Instance -> CCR1 = (1000-1) * dutyCycleScreen;
+
+	  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+
+
+//	  sprintf(str, "%d %d\n\r", lightPercent, adc_val);
+//	  HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+}
+
+void readButton(){
+	if(pressButton1 == 1){
+
+		if(mode == 0){
+			mode = 1;
+		}else{
+			mode = 0;
+		}
+		initialState = false;
+		previousNum = 1; //avg page
+		prevPreviousNum = 0;
+		HAL_Delay(200); // Debounce button
+		pressButton1 = 0;
+	}
+
+	if(pressButton2 == 1){
+		if(previousNum > -19 && numberOfRecord+previousNum > 0){
+			previousNum--;
+		}
+		HAL_Delay(200); // Debounce button
+		pressButton2 = 0;
+	}
+
+	if(pressButton3 == 1){
+		if(previousNum < 0+1){
+			previousNum++;
+		}
+		HAL_Delay(200); // Debounce button
+		pressButton3 = 0;
+	}
+
+}
+
+void calculationTimer(){
+	millisecondHAL = HAL_GetTick();
+}
+
+void colorCalculation(){
+//	float temp = 22;
+//	temp += lightPercent*0.1;
+	if(temp >= 31.0){
+		colorScreen = ORANGE;
+	}else if(temp >= 29.0 && temp < 31.0){
+		colorScreen = YELLOW;
+	}else if(temp >= 27.0 && temp < 29.0){
+		colorScreen = GREENYELLOW;
+	}else if(temp >= 25.0 && temp < 27.0){
+		colorScreen = GREEN;
+	}else if(temp >= 23.0 && temp < 25.0){
+		colorScreen = CYAN;
+	}else if(temp < 23.0){
+		colorScreen = BLUE;
+	}
+}
+
+void assignmentOne(){
+
+	readButton();
+	calculationTimer();
+	colorCalculation();
+
+	if(mode == 0){ //Normal Mode
+		if(prevColorScreen != colorScreen){
+			initialState = false;
+			prevColorScreen = colorScreen;
+		}
+		//Print Text Only First time
+		if(initialState == false){
+			setHorizontalScreen(colorScreen);
+			initialValue();
+			initialState = true;
+		}
+
+		//Read Sensor
+		tempMonitor();
+		//Read Variable Resister
+		resisterMonitor();
+
+		if(millisecondHAL - prevMillisecondHAL >= 500){
+
+			//Increment
+			numberOfRecord++;
+
+			//Reset
+			if(numberOfRecord > 99999){
+				numberOfRecord = 0;
+			}
+
+			//Print Value of Sensors
+			updateValue();
+
+			prevMillisecondHAL = millisecondHAL;
+		}
+
+
+	}else if(mode == 1){ // Show Average
+		if(initialState == false){
+			setHorizontalScreen(RED);
+			initialValue();
+			initialState = true;
+		}
+
+		if(prevPreviousNum != previousNum){
+			if(previousNum > 0){
+				setHorizontalScreen(RED); //set new screen
+				averageScreen();
+			}else if(previousNum == 0){
+				setHorizontalScreen(RED); //set new screen
+				initialValue();
+				updatePreviousValue();
+			}else if(previousNum < 0){
+				updatePreviousValue();
+			}
+			prevPreviousNum = previousNum;
+		}
+
+	}
+
 }
 
 /* USER CODE END 0 */
@@ -229,14 +491,14 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  sprintf(str, "\n\rAM2320 I2C DEMO Starting . . .\n\r");
 
-  HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
-
-  //initial driver setup to drive ili9341
+  //Initial driver setup to drive ili9341
   ILI9341_Init();
 
+  //ADC Input variable Resister(Light)
+  HAL_ADC_Start(&hadc1);
 
   //Interrupt millisecond
   HAL_TIM_Base_Start_IT(&htim1);
@@ -245,7 +507,6 @@ int main(void)
 
   //Reset Screen
   setHorizontalScreen(BLACK);
-
 
   /* USER CODE END 2 */
 
@@ -328,6 +589,32 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	//Green
+	if (GPIO_Pin == GPIO_PIN_7)
+	{
+		sprintf(str, "pin7 \n\r");
+		pressButton1 = 1;
+		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+	//Red
+	else if (GPIO_Pin == GPIO_PIN_6)
+	{
+		pressButton2 = 1;
+		sprintf(str, "pin6 \n\r");
+		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+	//Blue
+	else if (GPIO_Pin == GPIO_PIN_5)
+	{
+		pressButton3 = 1;
+		sprintf(str, "pin5 \n\r");
+		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+
+}
+
 uint16_t CRC16_2(uint8_t *ptr, uint8_t length)
 {
       uint16_t 	crc = 0xFFFF;
@@ -344,6 +631,7 @@ uint16_t CRC16_2(uint8_t *ptr, uint8_t length)
       }
       return crc;
 }
+
 /* USER CODE END 4 */
 
 /**
