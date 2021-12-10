@@ -555,6 +555,7 @@ void assignmentOne(){
 
 			//Reset
 			if(numberOfRecord > 99999){
+				eraseAllData(); // for not max overide number of Record // clean and save new data
 				numberOfRecord = 0;
 			}
 
