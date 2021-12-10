@@ -41,6 +41,8 @@
 #include "am2320.h"
 
 #include "stdbool.h"
+
+#include "EEPROM.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,6 +77,9 @@ uint8_t prevLightPercent = 0;
 float prevTemp = 0.0;
 float prevHumid = 0.0;
 
+//Buffer
+uint32_t numberOfRecordBuffer[20] = {0}; //index
+
 //Average Buffer 20 values (1 value/500ms for 10 s)
 uint8_t lightPercentBuffer[20] = {0};
 float tempBuffer[20] = {0.0};
@@ -89,6 +94,7 @@ volatile uint32_t adc_val = 0;
 bool pressButton1 = 0;
 bool pressButton2 = 0;
 bool pressButton3 = 0;
+bool pressButton4 = 0;
 
 //Mode
 uint8_t mode = 0; // default 0, average 1
@@ -103,6 +109,8 @@ uint64_t prevMillisecondHAL = 0;
 uint32_t colorScreen = BLACK;
 uint32_t prevColorScreen = BLACK;
 
+//EEPROM AddressI2C = 0xa0
+
 
 /* USER CODE END PV */
 
@@ -115,6 +123,127 @@ uint16_t CRC16_2(uint8_t *, uint8_t );
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// EEPROM Delete
+void eraseAllData(){
+	for (int i=0; i<512; i++)
+	{
+	  EEPROM_PageErase(i);
+	}
+}
+
+void saveAllData(){
+
+	// Record 32 bit Page 1,2
+	// Light 8 bit Page 3
+	// Temp 32 bit Page 4,5
+	// Humid 32 bit Page 6,7
+
+	char str[100];
+//	sprintf(str, "*******************\n\r");
+//	HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+
+
+	// Record 32 bit, #PAGE 1, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		uint32_t value = numberOfRecordBuffer[i];
+		EEPROM_Write_NUM(1, i*4, value);
+
+//		sprintf(str, "%d WRITE1\n\r", value);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+	// Record 32 bit, #PAGE 2, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		uint32_t value = numberOfRecordBuffer[i+10];
+		EEPROM_Write_NUM(2, i*4, value);
+//
+//		sprintf(str, "%d WRITE2\n\r",value);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+
+
+
+	// Light is Ok
+	EEPROM_Write(3, 0, lightPercentBuffer, 20);
+
+	// Temp 32 bit, #PAGE 4, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		float value = tempBuffer[i];
+		EEPROM_Write_NUM(4, i*4, value);
+	}
+	// Temp 32 bit, #PAGE 5, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		float value = tempBuffer[i+10];
+		EEPROM_Write_NUM(5, i*4, value);
+	}
+
+	// Humid 32 bit, #PAGE 6, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		float value = humidBuffer[i];
+		EEPROM_Write_NUM(6, i*4, value);
+	}
+	// Humid 32 bit, #PAGE 7, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		float value = humidBuffer[i+10];
+		EEPROM_Write_NUM(7, i*4, value);
+	}
+
+}
+
+void readAllData(){
+
+	uint32_t numberOfRecordMax = 0;
+
+	char str[100];
+//	sprintf(str, "---------------------\n\r");
+//	HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+
+
+	// Record 32 bit, #PAGE 1, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		numberOfRecordBuffer[i] = (uint32_t)EEPROM_Read_NUM(1, i*4);
+		if(numberOfRecordBuffer[i] > numberOfRecordMax){
+			numberOfRecordMax = numberOfRecordBuffer[i];
+		}
+
+//		sprintf(str, "%d READ1\n\r",numberOfRecordBuffer[i]);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+	// Record 32 bit, #PAGE 2, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		numberOfRecordBuffer[i+10] = (uint32_t)EEPROM_Read_NUM(2, i*4);
+		if(numberOfRecordBuffer[i+10] > numberOfRecordMax){
+			numberOfRecordMax = numberOfRecordBuffer[i+10];
+		}
+
+//		sprintf(str, "%d READ2\n\r",numberOfRecordBuffer[i+10]);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+
+	// Update the Lastest
+	numberOfRecord = numberOfRecordMax;
+
+	// Light is Ok
+	EEPROM_Read(3, 0, lightPercentBuffer, 20);
+
+	// Temp 32 bit, #PAGE 4, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		tempBuffer[i] = (uint32_t)EEPROM_Read_NUM(4, i*4);
+	}
+	// Temp 32 bit, #PAGE 5, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		tempBuffer[i+10] = (uint32_t)EEPROM_Read_NUM(5, i*4);
+	}
+	// Humid 32 bit, #PAGE 6, 0-9, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		humidBuffer[i] = (uint32_t)EEPROM_Read_NUM(6, i*4);
+	}
+	// Humid 32 bit, #PAGE 7, 10-19, 10 amounts (40 bytes)
+	for(uint8_t i = 0; i < 10; i++){
+		humidBuffer[i+10] = (uint32_t)EEPROM_Read_NUM(7, i*4);
+	}
+
+}
 
 // Paint screen black
 void setHorizontalScreen(uint16_t color){
@@ -235,9 +364,9 @@ void averageScreen(){
 void updatePreviousValue(){
 	uint8_t size = 3;
 	uint8_t offset = 30;
-	uint64_t showNum = numberOfRecord+1 + previousNum;
+	uint64_t showNum = numberOfRecord + previousNum;
 	//Update Record
-	sprintf(Temp_Buffer_text, "%05d", showNum);
+	sprintf(Temp_Buffer_text, "%05d", numberOfRecordBuffer[showNum % 20]);  // fix here
 	printValue(Temp_Buffer_text,1.5,offset,size,WHITE);
 	//Update Light
 	sprintf(Temp_Buffer_text, "%02d %%", lightPercentBuffer[showNum % 20]);
@@ -248,7 +377,6 @@ void updatePreviousValue(){
 	//Update Humidity
 	sprintf(Temp_Buffer_text, "%0.1f %%", humidBuffer[showNum % 20]);
 	printValue(Temp_Buffer_text,5,offset,size,WHITE);
-	prevHumid = humid;
 }
 
 void initialValue(){
@@ -277,6 +405,10 @@ void initialValue(){
 void updateValue(){
 	uint8_t size = 3;
 	uint8_t offset = 30;
+
+	//Read before Show // fix need to show from buffer or assign buffer to lastest value
+	readAllData();
+
 	//Update Record
 	if(prevNumberOfRecord != numberOfRecord){
 		sprintf(Temp_Buffer_text, "%05d", numberOfRecord+1);
@@ -303,9 +435,13 @@ void updateValue(){
 	}
 
 	//Buffer
+	numberOfRecordBuffer[numberOfRecord % 20] = numberOfRecord+1;
 	lightPercentBuffer[numberOfRecord % 20] = lightPercent;
 	tempBuffer[numberOfRecord % 20] = temp;
 	humidBuffer[numberOfRecord % 20] = humid;
+
+	//Write After Update
+	saveAllData();
 }
 
 void resisterMonitor(){
@@ -357,6 +493,12 @@ void readButton(){
 		}
 		HAL_Delay(200); // Debounce button
 		pressButton3 = 0;
+	}
+
+	if(pressButton4 == 1){
+		eraseAllData();
+		HAL_Delay(200); // Debounce button
+		pressButton4 = 0;
 	}
 
 }
@@ -494,6 +636,9 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
+  //Delete All Data EEPROM
+  readAllData();
+
   //Initial driver setup to drive ili9341
   ILI9341_Init();
 
@@ -610,6 +755,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	{
 		pressButton3 = 1;
 		sprintf(str, "pin5 \n\r");
+		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+	}
+	//On Board
+	//Blue
+	else if (GPIO_Pin == GPIO_PIN_13)
+	{
+		pressButton4 = 1;
+		sprintf(str, "pin13 \n\r");
 		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 
