@@ -85,7 +85,7 @@ uint8_t lightPercentBuffer[20] = {0};
 float tempBuffer[20] = {0.0};
 float humidBuffer[20] = {0.0};
 
-char Temp_Buffer_text[40];
+char Temp_Buffer_text[60];
 
 //ADC
 volatile uint32_t adc_val = 0;
@@ -329,8 +329,8 @@ void averageScreen(){
 		averageTemp += tempBuffer[i];
 		averageHumid += humidBuffer[i];
 
-		sprintf(str, "%d %f %f / %d %f %f\n\r",lightPercentBuffer[i], tempBuffer[i], humidBuffer[i],averageLightPercent ,averageTemp, averageHumid);
-		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+//		sprintf(str, "%d %f %f / %d %f %f\n\r",lightPercentBuffer[i], tempBuffer[i], humidBuffer[i],averageLightPercent ,averageTemp, averageHumid);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 
 	averageLightPercent /= n;
@@ -360,13 +360,27 @@ void averageScreen(){
 	//Update Humidity
 	sprintf(Temp_Buffer_text, "%0.1f %%", averageHumid);
 	printValue(Temp_Buffer_text,5,offset,size,WHITE);
+
+	sprintf(Temp_Buffer_text, "\n****************************\n\n\r");
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Average 10 s\n\r");
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Light   %02d %%\n\r", averageLightPercent);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Temp    %0.1f C\n\r", averageTemp);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Humid   %0.1f %%\n\r", averageHumid);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "****************************\n\n\r");
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+
 }
 void updatePreviousValue(){
 	uint8_t size = 3;
 	uint8_t offset = 30;
 	uint64_t showNum = numberOfRecord + previousNum;
 	//Update Record
-	sprintf(Temp_Buffer_text, "%05d", numberOfRecordBuffer[showNum % 20]);  // fix here
+	sprintf(Temp_Buffer_text, "%05d", numberOfRecordBuffer[showNum % 20]);
 	printValue(Temp_Buffer_text,1.5,offset,size,WHITE);
 	//Update Light
 	sprintf(Temp_Buffer_text, "%02d %%", lightPercentBuffer[showNum % 20]);
@@ -433,6 +447,19 @@ void updateValue(){
 		printValue(Temp_Buffer_text,5,offset,size,WHITE);
 		prevHumid = humid;
 	}
+
+
+	//Print UART
+	sprintf(Temp_Buffer_text, "Record  %05d\n\r", (int)(numberOfRecord+1));
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Light   %02d %%\n\r", lightPercent);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Temp    %0.1f C\n\r", temp);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "Humid   %0.1f %%\n\r", humid);
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
+	sprintf(Temp_Buffer_text, "\n\r");
+	HAL_UART_Transmit(&huart3, (uint8_t*) Temp_Buffer_text, strlen(Temp_Buffer_text),200);
 
 	//Buffer
 	numberOfRecordBuffer[numberOfRecord % 20] = numberOfRecord+1;
@@ -740,31 +767,31 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	//Green
 	if (GPIO_Pin == GPIO_PIN_7)
 	{
-		sprintf(str, "pin7 \n\r");
+//		sprintf(str, "pin7 \n\r");
 		pressButton1 = 1;
-		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 	//Red
 	else if (GPIO_Pin == GPIO_PIN_6)
 	{
 		pressButton2 = 1;
-		sprintf(str, "pin6 \n\r");
-		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+//		sprintf(str, "pin6 \n\r");
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 	//Blue
 	else if (GPIO_Pin == GPIO_PIN_5)
 	{
 		pressButton3 = 1;
-		sprintf(str, "pin5 \n\r");
-		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+//		sprintf(str, "pin5 \n\r");
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 	//On Board
 	//Blue
 	else if (GPIO_Pin == GPIO_PIN_13)
 	{
 		pressButton4 = 1;
-		sprintf(str, "pin13 \n\r");
-		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
+//		sprintf(str, "pin13 \n\r");
+//		HAL_UART_Transmit(&huart3, (uint8_t*) str, strlen(str),200);
 	}
 
 }
